@@ -1,3 +1,6 @@
+import { Auth, SimpleConsoleLogger } from 'typeorm';
+import { AuthModel, ProblemDetails, TokenRequestModel } from './GeneratedDtoModels';
+
 interface ICrudRepository<T extends {}> {
     create(item: T): void;
     getAll(): T[];
@@ -139,4 +142,87 @@ employees.forEach((employee) => {
 
 console.log(employees);
 
+class ApiException extends Error {
+    override message: string;
+    status: number;
+    response: string;
+    headers: { [key: string]: any; };
+    result: any;
 
+    constructor(message: string, status: number, response: string, headers: { [key: string]: any; }, result: any) {
+        super();
+
+        this.message = message;
+        this.status = status;
+        this.response = response;
+        this.headers = headers;
+        this.result = result;
+    }
+
+    protected isApiException = true;
+
+    static isApiException(obj: any): obj is ApiException {
+        return obj.isApiException === true;
+    }
+}
+
+async function login(body: TokenRequestModel | undefined): Promise<AuthModel> {
+    const _baseUr: string = "http://localhost:5289/";
+    const endpointUrl = _baseUr + "api/v1/Auth/Login";
+
+    let bodyAsJson = JSON.stringify(body);
+
+    let bodyContent: RequestInit = {
+        body: bodyAsJson,
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+    }
+
+    const response = await fetch(endpointUrl, bodyContent);
+    return await processResponse(response);
+}
+
+async function processResponse(response: Response): Promise<AuthModel> {
+    const status = response.status;
+    let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+    if (status === 400) {
+        const _responseText = await response.text();
+        let result400: any = null;
+        let resultData400 = _responseText === "" ? null : JSON.parse(_responseText);
+        result400 = ProblemDetails.fromJS(resultData400);
+        return throwException("Bad Request", status, _responseText, _headers, result400);
+    } else if (status === 406) {
+        const _responseText_1 = await response.text();
+        let result406: any = null;
+        let resultData406 = _responseText_1 === "" ? null : JSON.parse(_responseText_1);
+        result406 = ProblemDetails.fromJS(resultData406);
+        return throwException("Not Acceptable", status, _responseText_1, _headers, result406);
+    } else if (status === 500) {
+        const _responseText_2 = await response.text();
+        return throwException("Server Error", status, _responseText_2, _headers);
+    } else if (status === 200) {
+        const _responseText_3 = await response.text();
+        let resultData200 = _responseText_3 === "" ? null : JSON.parse(_responseText_3);
+        let result200 = AuthModel.fromJS(resultData200);
+        return result200;
+    } else if (status !== 200 && status !== 204) {
+        const _responseText_4 = await response.text();
+        return throwException("An unexpected server error occurred.", status, _responseText_4, _headers);
+    }
+    return Promise.resolve<AuthModel>(null as any);
+}
+
+function throwException(message: string, status: number, response: string, headers: { [key: string]: any; }, result?: any): any {
+    if (result !== null && result !== undefined)
+        throw result;
+    else
+        throw new ApiException(message, status, response, headers, null);
+}
+
+console.log(login(new TokenRequestModel({
+    email: "me5260287@gmail.com",
+    password: "Mohamed@123456"
+})).then(response => console.log(response)));
